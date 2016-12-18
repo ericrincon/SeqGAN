@@ -2,6 +2,13 @@ import tensorflow as tf
 
 from batch_generator import BatchGenerator
 
+class Generator:
+    """
+    A simple LSTM network for sequence generation.
+    """
+    def __init__(self):
+
+
 class Discriminator:
     """
     A deep discriminator model for classifying sequences as real or not as described in the paper
