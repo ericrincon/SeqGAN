@@ -130,7 +130,7 @@ class Discriminator:
                     batch_losses.append(loss)
 
                     batch_i = i
-                print 'Epoch: {} loss: {:.6f} acc: {:.6f}'.format(epoch_i, mean(batch_losses), mean(batch_accs))
+                print 'Epoch: {} loss: {:.6f} acc: {:.6f}'.format(epoch_i + 1, mean(batch_losses), mean(batch_accs))
 
                 epoch_i += 1
 
