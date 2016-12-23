@@ -2,11 +2,138 @@ import tensorflow as tf
 
 from batch_generator import BatchGenerator
 
+
+
+
+
 class Generator:
     """
     A simple LSTM network for sequence generation.
     """
-    def __init__(self):
+    def __init__(self, nb_units, vocab_size, embedding_size, max_seq_length):
+        self.nb_units = nb_units
+        self.vocab_size = vocab_size
+        self.embedding_size = embedding_size
+        self.max_seq_length = max_seq_length
+
+        self.X_input = tf.placeholder(tf.float32, [None, max_seq_length, 1])
+        self.y_output = tf.placeholder(tf.float32, [None, vocab_size])
+
+        """
+        with tf.device('/cpu:0'), tf.name_scope('embeddings'):
+            W_embeddings = tf.Variable(
+                initial_value=tf.random_uniform([vocab_size, embedding_size], -1.0, 1.0),
+                name='W_embedding'
+            )
+
+            self.embeddings = tf.nn.embedding_lookup(W_embeddings, self.X_input)
+        """
+        rnn = tf.contrib.rnn.LSTMBlockCell(
+            num_units=nb_units,
+            forget_bias=1.0,
+            use_peephole=False
+        )
+        self.lstm = tf.nn.rnn_cell.MultiRNNCell([rnn] * 1)
+
+        self.global_step = tf.Variable(0, trainable=False)
+
+    def sample(self, X):
+        state = self.state
+
+        for i in range(self.max_seq_length):
+            output, state = self.lstm(X[i, :], state)
+
+
+
+
+
+    def train(self, X, y, nb_epochs, batch_size=32, learning_rate=.001):
+        self.initial_state = self.state = tf.zeros([batch_size, self.nb_units])
+
+        rnn_state = self.lstm.zero_state(batch_size, tf.float32)
+        x_split = tf.split(1, self.max_seq_length, self.X_input)
+
+        for step in range(self.max_seq_length):
+            with tf.variable_scope("RNN") as scope:
+                if step > 0:
+                    scope.reuse_variables()
+
+                input_step = tf.squeeze(x_split[step], [1])
+                print input_step
+                h_rnn, rnn_state = self.lstm(input_step, rnn_state)
+
+        self.W_softmax = tf.get_variable('W_softmax', [self.nb_units, self.vocab_size])
+        self.b_softmax = tf.get_variable('b_softmax', [self.vocab_size])
+
+        self.logits = tf.matmul(h_rnn, self.W_softmax) + self.b_softmax
+        probabilities = tf.nn.softmax(self.logits)
+        predictions = tf.argmax(probabilities, dimension=1)
+
+        self.lstm_state = self.lstm.zero_state(batch_size, tf.float32)
+
+        # Evaluate model
+        # Compute batch loss
+        print self.logits
+        print y
+        loss_per_example = tf.nn.softmax_cross_entropy_with_logits(self.logits, y)
+        loss = tf.reduce_mean(loss_per_example)
+
+        # Prediction accuracy
+        accuracy = tf.contrib.metrics.accuracy(predictions, tf.argmax(y, dimension=1))
+
+        with tf.name_scope('loss'):
+            optimizer = tf.train.RMSPropOptimizer(learning_rate)
+            grads_and_vars = optimizer.compute_gradients(loss)
+
+        # Gradient clipping
+        grads, variables = zip(*grads_and_vars)
+        grads_clipped, _ = tf.clip_by_global_norm(grads, clip_norm=5.0)
+        grads_and_vars = zip(grads_clipped, variables)
+
+        train_op = optimizer.apply_gradients(grads_and_vars, global_step=self.global_step)
+
+        tf_vars_to_save = tf.trainable_variables() + [self.global_step]
+        saver = tf.train.Saver(tf_vars_to_save, max_to_keep=5)
+
+        init = tf.initialize_all_variables()
+
+        total_loss = float(0)
+
+        with tf.Session() as sess:
+            sess.run(init)
+
+            epoch_i = 0
+
+            while epoch_i < nb_epochs:
+                batch_i = 0
+                batch_losses = []
+                batch_accs = []
+                numpy_state = self.initial_state.eval()
+
+                for i in range(batch_size, X.shape[0], batch_size):
+                    X_batch, y_batch = X[batch_i:i], y[batch_i:i]
+
+                    sess.run(optimizer, feed_dict={
+                        self.X_input: X_batch,
+                        self.y_output: y_batch
+                    })
+
+                    loss, acc = sess.run([loss, accuracy], feed_dict={
+                        self.X_input: X_batch,
+                        self.y_output: y_batch
+                    })
+
+                    total_loss += loss
+                    batch_accs.append(acc)
+                    batch_losses.append(loss)
+
+                    batch_i = i
+                print 'Epoch: {} loss: {:.6f} acc: {:.6f}'.format(epoch_i + 1, mean(batch_losses), mean(batch_accs))
+
+                epoch_i += 1
+
+
+
 
 
 class Discriminator:
