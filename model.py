@@ -1,9 +1,5 @@
 import tensorflow as tf
 
-from batch_generator import BatchGenerator
-
-
-
 
 
 class Generator:
@@ -16,23 +12,24 @@ class Generator:
         self.embedding_size = embedding_size
         self.max_seq_length = max_seq_length
 
-        self.X_input = tf.placeholder(tf.float32, [None, max_seq_length, 1])
+        self.X_input = tf.placeholder(tf.int32, [None, max_seq_length, 1])
         self.y_output = tf.placeholder(tf.float32, [None, vocab_size])
 
-        """
+
         with tf.device('/cpu:0'), tf.name_scope('embeddings'):
             W_embeddings = tf.Variable(
                 initial_value=tf.random_uniform([vocab_size, embedding_size], -1.0, 1.0),
                 name='W_embedding'
             )
 
-            self.embeddings = tf.nn.embedding_lookup(W_embeddings, self.X_input)
-        """
+            self.embeddings = tf.nn.embedding_lookup(W_embeddings, self.X_input, )
+
         rnn = tf.contrib.rnn.LSTMBlockCell(
             num_units=nb_units,
             forget_bias=1.0,
             use_peephole=False
         )
+
         self.lstm = tf.nn.rnn_cell.MultiRNNCell([rnn] * 1)
 
         self.global_step = tf.Variable(0, trainable=False)
@@ -51,21 +48,23 @@ class Generator:
         self.initial_state = self.state = tf.zeros([batch_size, self.nb_units])
 
         rnn_state = self.lstm.zero_state(batch_size, tf.float32)
-        x_split = tf.split(1, self.max_seq_length, self.X_input)
-
+        x_split = tf.split(1, self.max_seq_length, self.embeddings)
+        """
         for step in range(self.max_seq_length):
             with tf.variable_scope("RNN") as scope:
                 if step > 0:
                     scope.reuse_variables()
 
-                input_step = tf.squeeze(x_split[step], [1])
-                print input_step
+                input_step = tf.squeeze(self.embeddings[step], [1])
                 h_rnn, rnn_state = self.lstm(input_step, rnn_state)
+        """
+        outputs, self.lstm_new_state = tf.nn.dynamic_rnn(self.lstm, self.X_input, initial_state=rnn_state)
+
 
         self.W_softmax = tf.get_variable('W_softmax', [self.nb_units, self.vocab_size])
         self.b_softmax = tf.get_variable('b_softmax', [self.vocab_size])
 
-        self.logits = tf.matmul(h_rnn, self.W_softmax) + self.b_softmax
+        self.logits = tf.matmul(outputs, self.W_softmax) + self.b_softmax
         probabilities = tf.nn.softmax(self.logits)
         predictions = tf.argmax(probabilities, dimension=1)
 
@@ -73,8 +72,8 @@ class Generator:
 
         # Evaluate model
         # Compute batch loss
-        print self.logits
-        print y
+        print('logits: ', self.logits)
+        print('y: ', y)
         loss_per_example = tf.nn.softmax_cross_entropy_with_logits(self.logits, y)
         loss = tf.reduce_mean(loss_per_example)
 
@@ -128,7 +127,7 @@ class Generator:
                     batch_losses.append(loss)
 
                     batch_i = i
-                print 'Epoch: {} loss: {:.6f} acc: {:.6f}'.format(epoch_i + 1, mean(batch_losses), mean(batch_accs))
+                print('Epoch: {} loss: {:.6f} acc: {:.6f}'.format(epoch_i + 1, mean(batch_losses), mean(batch_accs)))
 
                 epoch_i += 1
 
@@ -264,7 +263,7 @@ class Discriminator:
                     batch_losses.append(loss)
 
                     batch_i = i
-                print 'Epoch: {} loss: {:.6f} acc: {:.6f}'.format(epoch_i + 1, mean(batch_losses), mean(batch_accs))
+                print('Epoch: {} loss: {:.6f} acc: {:.6f}'.format(epoch_i + 1, mean(batch_losses), mean(batch_accs)))
 
                 epoch_i += 1
 
