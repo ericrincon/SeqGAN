@@ -1,6 +1,5 @@
 import tensorflow as tf
-
-
+import numpy as np
 
 class Generator:
     """
@@ -30,7 +29,7 @@ class Generator:
             use_peephole=False
         )
 
-        self.lstm = tf.nn.rnn_cell.MultiRNNCell([rnn] * 1)
+        self.lstm = tf.contrib.rnn.core_rnn_cell.MultiRNNCell([rnn] * 1)
 
         self.global_step = tf.Variable(0, trainable=False)
 
@@ -46,25 +45,21 @@ class Generator:
 
     def train(self, X, y, nb_epochs, batch_size=32, learning_rate=.001):
         self.initial_state = self.state = tf.zeros([batch_size, self.nb_units])
-
+        y_batch = tf.placeholder(tf.float32, shape=[None, batch_size])
         rnn_state = self.lstm.zero_state(batch_size, tf.float32)
-        x_split = tf.split(1, self.max_seq_length, self.embeddings)
-        """
-        for step in range(self.max_seq_length):
-            with tf.variable_scope("RNN") as scope:
-                if step > 0:
-                    scope.reuse_variables()
 
-                input_step = tf.squeeze(self.embeddings[step], [1])
-                h_rnn, rnn_state = self.lstm(input_step, rnn_state)
-        """
-        outputs, self.lstm_new_state = tf.nn.dynamic_rnn(self.lstm, self.X_input, initial_state=rnn_state)
+
+
+
+        embeddings = tf.squeeze(self.embeddings, axis=2)
+        print(embeddings.shape)
+        outputs, self.lstm_new_state = tf.nn.dynamic_rnn(self.lstm, embeddings, dtype=tf.float32)
 
 
         self.W_softmax = tf.get_variable('W_softmax', [self.nb_units, self.vocab_size])
         self.b_softmax = tf.get_variable('b_softmax', [self.vocab_size])
 
-        self.logits = tf.matmul(outputs, self.W_softmax) + self.b_softmax
+        self.logits = tf.matmul(outputs[:, -1, :], self.W_softmax) + self.b_softmax
         probabilities = tf.nn.softmax(self.logits)
         predictions = tf.argmax(probabilities, dimension=1)
 
@@ -72,9 +67,32 @@ class Generator:
 
         # Evaluate model
         # Compute batch loss
-        print('logits: ', self.logits)
-        print('y: ', y)
-        loss_per_example = tf.nn.softmax_cross_entropy_with_logits(self.logits, y)
+        print('logits: ', self.logits.shape
+              )
+        print('y: ', y.shape)
+
+        pred_seqs = np.zeros((batch_size, self.max_seq_length))
+        rnn_state = self.lstm_new_state
+
+        for step in range(self.max_seq_length):
+            with tf.variable_scope("RNN") as scope:
+                if step > 0:
+                    scope.reuse_variables()
+
+                input_step = tf.squeeze(self.embeddings, [2])
+                h_rnn, rnn_state = tf.nn.dynamic_rnn(self.lstm, input_step, initial_state=rnn_state)
+                h_rnn = tf.squeeze(h_rnn)
+                logits = tf.matmul(h_rnn, self.W_softmax)
+
+                print logits
+                preds = tf.argmax(logits, axis=1)
+
+#                pred_seqs[:, step] = preds
+        #print pred_seqs
+        print y
+
+
+        loss_per_example = tf.nn.softmax_cross_entropy_with_logits(pred_seqs, y)
         loss = tf.reduce_mean(loss_per_example)
 
         # Prediction accuracy
