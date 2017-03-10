@@ -84,16 +84,19 @@ class Generator:
                 h_rnn = tf.squeeze(h_rnn)
                 logits = tf.matmul(h_rnn, self.W_softmax)
 
-                print logits
                 preds = tf.argmax(logits, axis=1)
 
-#                pred_seqs[:, step] = preds
-        #print pred_seqs
-        print y
 
+        #loss_per_example = tf.nn.softmax_cross_entropy_with_logits(logits=preds, labels=y)
 
-        loss_per_example = tf.nn.softmax_cross_entropy_with_logits(pred_seqs, y)
-        loss = tf.reduce_mean(loss_per_example)
+        # logits: A 3D Tensor of shape [batch_size x sequence_length x num_decoder_symbols] and dtype float.
+        # The logits correspond to the prediction across all classes at each timestep.
+        # targets: A 2D Tensor of shape [batch_size x sequence_length] and dtype int. The target represents
+        # the true class at each timestep.
+        weights = tf.ones([batch_size, self.max_seq_length])
+
+        loss_per_seq = tf.contrib.seq2seq.sequence_loss(logits=preds, targets=y, weights=weights)
+        loss = tf.reduce_mean(loss_per_seq)
 
         # Prediction accuracy
         accuracy = tf.contrib.metrics.accuracy(predictions, tf.argmax(y, dimension=1))
