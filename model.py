@@ -1,7 +1,4 @@
 import tensorflow as tf
-import numpy as np
-import sys
-
 
 class Generator:
     """
@@ -37,12 +34,14 @@ class Generator:
 
 
     def train(self, X, y, nb_epochs, batch_size=32, learning_rate=.001):
-        self.initial_state = self.state = tf.zeros([batch_size, self.nb_units])
-        self.W_softmax = tf.get_variable('W_softmax', [batch_size, self.nb_units, self.vocab_size])
+        self.W_softmax = tf.get_variable(
+            name='W_softmax',
+            shape=[batch_size, self.nb_units, self.vocab_size],
+            initializer=tf.random_normal_initializer(0, 1)
+        )
         self.b_softmax = tf.get_variable('b_softmax', [self.vocab_size])
 
-        with tf.variable_scope('RNN') as scope:
-            output, hidden_state = tf.nn.dynamic_rnn(self.lstm, self.embeddings, dtype=tf.float32)
+        output, hidden_state = tf.nn.dynamic_rnn(self.lstm, self.embeddings, dtype=tf.float32)
 
         logits = tf.matmul(output, self.W_softmax) + self.b_softmax
 
@@ -54,11 +53,10 @@ class Generator:
 
         loss_per_seq = tf.contrib.seq2seq.sequence_loss(logits=logits, targets=self.y_output, weights=weights)
         loss = tf.reduce_mean(loss_per_seq)
-        
-        with tf.variable_scope('loss') as scope:
-            scope.reuse_variables()
-            optimizer = tf.train.RMSPropOptimizer(learning_rate)
-            grads_and_vars = optimizer.compute_gradients(loss)
+
+        optimizer = tf.train.AdamOptimizer(learning_rate)
+
+        grads_and_vars = optimizer.compute_gradients(loss)
 
         # Gradient clipping
         grads, variables = zip(*grads_and_vars)
@@ -66,6 +64,7 @@ class Generator:
         grads_and_vars = zip(grads_clipped, variables)
 
         train_op = optimizer.apply_gradients(grads_and_vars, global_step=self.global_step)
+
 
         tf_vars_to_save = tf.trainable_variables() + [self.global_step]
         saver = tf.train.Saver(tf_vars_to_save, max_to_keep=5)
@@ -82,7 +81,6 @@ class Generator:
             while epoch_i < nb_epochs:
                 batch_i = 0
                 batch_losses = []
-                numpy_state = self.initial_state.eval()
 
                 for i in range(batch_size, X.shape[0], batch_size):
                     X_batch, y_batch = X[batch_i:i], y[batch_i:i]
@@ -98,10 +96,11 @@ class Generator:
                     })
 
                     total_loss += cost[0]
-                    batch_losses.append(total_loss)
+                    batch_losses.append(cost[0])
 
                     batch_i = i
-                print('Epoch: {} loss: {}'.format(epoch_i + 1, mean(batch_losses)))
+                mean_loss = mean(batch_losses)
+                print('Epoch: {} loss: {}'.format(epoch_i + 1 , mean_loss))
 
                 epoch_i += 1
 

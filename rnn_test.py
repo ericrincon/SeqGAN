@@ -16,8 +16,8 @@ def main():
 
 
     y_test = np.array(y_test)
-    cnn = Generator(10, vocab_size, 50, 100)
-    cnn.train(X_train, y_train, 5)
+    cnn = Generator(100, vocab_size, 50, 100)
+    cnn.train(X_train, y_train, 20)
 
 if __name__ == '__main__':
     main()
