@@ -1,5 +1,7 @@
 import tensorflow as tf
 import numpy as np
+import sys
+
 
 class Generator:
     """
@@ -11,8 +13,8 @@ class Generator:
         self.embedding_size = embedding_size
         self.max_seq_length = max_seq_length
 
-        self.X_input = tf.placeholder(tf.int32, [None, max_seq_length, 1])
-        self.y_output = tf.placeholder(tf.float32, [None, vocab_size])
+        self.X_input = tf.placeholder(tf.int32, [None, max_seq_length])
+        self.y_output = tf.placeholder(tf.int32, [None, max_seq_length])
 
 
         with tf.device('/cpu:0'), tf.name_scope('embeddings'):
@@ -21,7 +23,7 @@ class Generator:
                 name='W_embedding'
             )
 
-            self.embeddings = tf.nn.embedding_lookup(W_embeddings, self.X_input, )
+            self.embeddings = tf.nn.embedding_lookup(W_embeddings, self.X_input)
 
         rnn = tf.contrib.rnn.LSTMBlockCell(
             num_units=nb_units,
@@ -33,58 +35,16 @@ class Generator:
 
         self.global_step = tf.Variable(0, trainable=False)
 
-    def sample(self, X):
-        state = self.state
-
-        for i in range(self.max_seq_length):
-            output, state = self.lstm(X[i, :], state)
-
-
-
-
 
     def train(self, X, y, nb_epochs, batch_size=32, learning_rate=.001):
         self.initial_state = self.state = tf.zeros([batch_size, self.nb_units])
-        y_batch = tf.placeholder(tf.float32, shape=[None, batch_size])
-        rnn_state = self.lstm.zero_state(batch_size, tf.float32)
-
-
-
-
-        embeddings = tf.squeeze(self.embeddings, axis=2)
-        print(embeddings.shape)
-        outputs, self.lstm_new_state = tf.nn.dynamic_rnn(self.lstm, embeddings, dtype=tf.float32)
-
-
-        self.W_softmax = tf.get_variable('W_softmax', [self.nb_units, self.vocab_size])
+        self.W_softmax = tf.get_variable('W_softmax', [batch_size, self.nb_units, self.vocab_size])
         self.b_softmax = tf.get_variable('b_softmax', [self.vocab_size])
 
-        self.logits = tf.matmul(outputs[:, -1, :], self.W_softmax) + self.b_softmax
-        probabilities = tf.nn.softmax(self.logits)
-        predictions = tf.argmax(probabilities, dimension=1)
+        with tf.variable_scope('RNN') as scope:
+            output, hidden_state = tf.nn.dynamic_rnn(self.lstm, self.embeddings, dtype=tf.float32)
 
-        self.lstm_state = self.lstm.zero_state(batch_size, tf.float32)
-
-        # Evaluate model
-        # Compute batch loss
-        print('logits: ', self.logits.shape
-              )
-        print('y: ', y.shape)
-
-        pred_seqs = np.zeros((batch_size, self.max_seq_length))
-        rnn_state = self.lstm_new_state
-
-        for step in range(self.max_seq_length):
-            with tf.variable_scope("RNN") as scope:
-                if step > 0:
-                    scope.reuse_variables()
-
-                input_step = tf.squeeze(self.embeddings, [2])
-                h_rnn, rnn_state = tf.nn.dynamic_rnn(self.lstm, input_step, initial_state=rnn_state)
-                h_rnn = tf.squeeze(h_rnn)
-                logits = tf.matmul(h_rnn, self.W_softmax)
-
-                preds = tf.argmax(logits, axis=1)
+        logits = tf.matmul(output, self.W_softmax) + self.b_softmax
 
 
         #loss_per_example = tf.nn.softmax_cross_entropy_with_logits(logits=preds, labels=y)
@@ -95,13 +55,14 @@ class Generator:
         # the true class at each timestep.
         weights = tf.ones([batch_size, self.max_seq_length])
 
-        loss_per_seq = tf.contrib.seq2seq.sequence_loss(logits=preds, targets=y, weights=weights)
+        loss_per_seq = tf.contrib.seq2seq.sequence_loss(logits=logits, targets=self.y_output, weights=weights)
         loss = tf.reduce_mean(loss_per_seq)
 
         # Prediction accuracy
-        accuracy = tf.contrib.metrics.accuracy(predictions, tf.argmax(y, dimension=1))
+        #accuracy = tf.contrib.metrics.accuracy(predictions, tf.argmax(y, dimension=1))
 
-        with tf.name_scope('loss'):
+        with tf.variable_scope('loss') as scope:
+            scope.reuse_variables()
             optimizer = tf.train.RMSPropOptimizer(learning_rate)
             grads_and_vars = optimizer.compute_gradients(loss)
 
@@ -127,28 +88,26 @@ class Generator:
             while epoch_i < nb_epochs:
                 batch_i = 0
                 batch_losses = []
-                batch_accs = []
                 numpy_state = self.initial_state.eval()
 
                 for i in range(batch_size, X.shape[0], batch_size):
                     X_batch, y_batch = X[batch_i:i], y[batch_i:i]
 
-                    sess.run(optimizer, feed_dict={
+                    sess.run(train_op, feed_dict={
                         self.X_input: X_batch,
                         self.y_output: y_batch
                     })
 
-                    loss, acc = sess.run([loss, accuracy], feed_dict={
+                    cost = sess.run([loss], feed_dict={
                         self.X_input: X_batch,
                         self.y_output: y_batch
                     })
 
-                    total_loss += loss
-                    batch_accs.append(acc)
-                    batch_losses.append(loss)
+                    total_loss += cost[0]
+                    batch_losses.append(total_loss)
 
                     batch_i = i
-                print('Epoch: {} loss: {:.6f} acc: {:.6f}'.format(epoch_i + 1, mean(batch_losses), mean(batch_accs)))
+                print('Epoch: {} loss: {}'.format(epoch_i + 1, mean(batch_losses)))
 
                 epoch_i += 1
 
