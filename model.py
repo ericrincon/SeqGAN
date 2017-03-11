@@ -46,9 +46,6 @@ class Generator:
 
         logits = tf.matmul(output, self.W_softmax) + self.b_softmax
 
-
-        #loss_per_example = tf.nn.softmax_cross_entropy_with_logits(logits=preds, labels=y)
-
         # logits: A 3D Tensor of shape [batch_size x sequence_length x num_decoder_symbols] and dtype float.
         # The logits correspond to the prediction across all classes at each timestep.
         # targets: A 2D Tensor of shape [batch_size x sequence_length] and dtype int. The target represents
@@ -57,10 +54,7 @@ class Generator:
 
         loss_per_seq = tf.contrib.seq2seq.sequence_loss(logits=logits, targets=self.y_output, weights=weights)
         loss = tf.reduce_mean(loss_per_seq)
-
-        # Prediction accuracy
-        #accuracy = tf.contrib.metrics.accuracy(predictions, tf.argmax(y, dimension=1))
-
+        
         with tf.variable_scope('loss') as scope:
             scope.reuse_variables()
             optimizer = tf.train.RMSPropOptimizer(learning_rate)
