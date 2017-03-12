@@ -166,10 +166,9 @@ class Discriminator:
                 padding='VALID',
                 name='W_max_pooling' + '_' + str(filter_window_size)
             )
-
             pooled_features.append(max_pooling)
 
-        concatenated_features = tf.concat(3, pooled_features)
+        concatenated_features = tf.concat(pooled_features, axis=3)
         self.final_feature_length = nb_filters * len(pooled_features)
 
         return tf.reshape(concatenated_features, [-1, self.final_feature_length])

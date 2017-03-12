@@ -14,7 +14,7 @@ def main():
     print 'vocab size: {}'.format(vocab_size)
     y_train = to_categorical(np.array(y_train), 2)
     y_test = np.array(y_test)
-    cnn = Discriminator(vocab_size, 100, 100, [2,3], 50, 2)
+    cnn = Discriminator(vocab_size, 100, 100, [2, 3], 50, 2)
     cnn.train(X_train, y_train, 5)
 
 if __name__ == '__main__':
