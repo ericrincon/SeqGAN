@@ -202,7 +202,7 @@ class Discriminator:
         # Evaluate model
         correct_pred = tf.equal(self.predictions, tf.argmax(self.y_input, 1))
         accuracy = tf.reduce_mean(tf.cast(correct_pred, 'float'))
-        cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(self.scores, self.y_input))
+        cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=self.scores, labels=self.y_input))
 
         with tf.name_scope('loss'):
             optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate).minimize(cost)
